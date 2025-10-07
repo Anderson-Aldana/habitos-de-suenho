@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hábitos de Sueño Saludables</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #2f557f;
+            overflow-x: hidden;
+        }
+
+        #pdf-container {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            background: #2f557f;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 10px;
+        }
+
+        .pdf-page {
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 100%;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            height: auto !important;
+            width: 100% !important;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 1.2em;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            #pdf-container {
+                padding: 10px 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Cargando documento...</p>
+    </div>
+
+    <div id="pdf-container"></div>
+
+    <div class="nav-buttons" id="nav-buttons" style="display: none;">
+        <button id="prev-page">◀ Anterior</button>
+        <span class="page-info">
+            <span id="page-num"></span> / <span id="page-count"></span>
+        </span>
+        <button id="next-page">Siguiente ▶</button>
+    </div>
+
+    <script>
+        // Configurar PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // IMPORTANTE: Coloca aquí la URL de tu PDF
+        const pdfUrl = 'src/Habitos de Sueño Saludables.pdf';
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 0;
+        const scale = 2.0; // Escala para mejor calidad en móviles
+
+        // Función para renderizar una página
+        async function renderPage(pageNum) {
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: scale });
+            
+            const canvas = document.createElement('canvas');
+            canvas.className = 'pdf-page';
+            const context = canvas.getContext('2d');
+            
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+
+            await page.render(renderContext).promise;
+            return canvas;
+        }
+
+        // Función para renderizar todas las páginas
+        async function renderAllPages() {
+            const container = document.getElementById('pdf-container');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                const canvas = await renderPage(i);
+                container.appendChild(canvas);
+            }
+        }
+
+        // Función para renderizar página por página (alternativa)
+        async function renderSinglePage(pageNum) {
+            const container = document.getElementById('pdf-container');
+            container.innerHTML = '';
+            const canvas = await renderPage(pageNum);
+            container.appendChild(canvas);
+            
+            document.getElementById('page-num').textContent = pageNum;
+            document.getElementById('prev-page').disabled = pageNum <= 1;
+            document.getElementById('next-page').disabled = pageNum >= totalPages;
+        }
+
+        // Cargar el PDF
+        async function loadPDF() {
+            try {
+                // Cargar el documento PDF
+                const loadingTask = pdfjsLib.getDocument(pdfUrl);
+                pdfDoc = await loadingTask.promise;
+                totalPages = pdfDoc.numPages;
+
+                document.getElementById('page-count').textContent = totalPages;
+                
+                // Ocultar loading
+                document.getElementById('loading').style.display = 'none';
+
+                // Renderizar todas las páginas (mejor para documentos cortos)
+                await renderAllPages();
+
+                // Si prefieres navegación página por página, usa esto en su lugar:
+                // await renderSinglePage(currentPage);
+                // document.getElementById('nav-buttons').style.display = 'flex';
+
+            } catch (error) {
+                document.getElementById('loading').innerHTML = 
+                    '<p style="color: #dc3545;">Error al cargar el PDF</p>' +
+                    '<p style="font-size: 0.9em; margin-top: 10px;">Verifica la URL del archivo</p>';
+                console.error('Error:', error);
+            }
+        }
+
+        // Botones de navegación (si usas navegación por páginas)
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderSinglePage(currentPage);
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderSinglePage(currentPage);
+            }
+        });
+
+        // Prevenir comportamientos de descarga
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'p')) {
+                e.preventDefault();
+            }
+        });
+
+        // Iniciar carga cuando la página esté lista
+        window.addEventListener('DOMContentLoaded', loadPDF);
+    </script>
+</body>
+</html>
