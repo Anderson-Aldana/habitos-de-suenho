@@ -14,7 +14,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #2f557f;
+            background: #f5f5f5;
             overflow-x: hidden;
         }
 
@@ -22,7 +22,7 @@
             width: 100%;
             max-width: 100%;
             margin: 0 auto;
-            background: #2f557f;
+            background: white;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -83,89 +83,68 @@
 
     <div id="pdf-container"></div>
 
-    <div class="nav-buttons" id="nav-buttons" style="display: none;">
-        <button id="prev-page">◀ Anterior</button>
-        <span class="page-info">
-            <span id="page-num"></span> / <span id="page-count"></span>
-        </span>
-        <button id="next-page">Siguiente ▶</button>
-    </div>
-
     <script>
         // Configurar PDF.js
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // IMPORTANTE: Coloca aquí la URL de tu PDF
-        const pdfUrl = 'src/Habitos de Sueño Saludables.pdf';
+        // IMPORTANTE: Coloca aquí el nombre de tu PDF local
+        const pdfUrl = 'Habitos-de-Sueno-Saludables.pdf';
 
         let pdfDoc = null;
-        let currentPage = 1;
-        let totalPages = 0;
-        const scale = 2.0; // Escala para mejor calidad en móviles
+        const scale = window.devicePixelRatio > 2 ? 1.5 : window.devicePixelRatio || 1.5;
 
-        // Función para renderizar una página
-        async function renderPage(pageNum) {
-            const page = await pdfDoc.getPage(pageNum);
+        // Función para renderizar la página
+        async function renderPage() {
+            const page = await pdfDoc.getPage(1);
             const viewport = page.getViewport({ scale: scale });
             
             const canvas = document.createElement('canvas');
             canvas.className = 'pdf-page';
-            const context = canvas.getContext('2d');
+            const context = canvas.getContext('2d', { 
+                alpha: false,
+                desynchronized: true 
+            });
             
             canvas.height = viewport.height;
             canvas.width = viewport.width;
 
-            const renderContext = {
+            await page.render({
                 canvasContext: context,
                 viewport: viewport
-            };
-
-            await page.render(renderContext).promise;
+            }).promise;
+            
             return canvas;
         }
 
-        // Función para renderizar todas las páginas
+        // Función para renderizar la página
         async function renderAllPages() {
             const container = document.getElementById('pdf-container');
-            container.innerHTML = '';
-
-            for (let i = 1; i <= totalPages; i++) {
-                const canvas = await renderPage(i);
-                container.appendChild(canvas);
-            }
-        }
-
-        // Función para renderizar página por página (alternativa)
-        async function renderSinglePage(pageNum) {
-            const container = document.getElementById('pdf-container');
-            container.innerHTML = '';
-            const canvas = await renderPage(pageNum);
+            const canvas = await renderPage();
             container.appendChild(canvas);
-            
-            document.getElementById('page-num').textContent = pageNum;
-            document.getElementById('prev-page').disabled = pageNum <= 1;
-            document.getElementById('next-page').disabled = pageNum >= totalPages;
         }
 
         // Cargar el PDF
         async function loadPDF() {
             try {
-                // Cargar el documento PDF
-                const loadingTask = pdfjsLib.getDocument(pdfUrl);
+                // Configuración optimizada para archivos locales
+                const loadingTask = pdfjsLib.getDocument({
+                    url: pdfUrl,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true,
+                    disableAutoFetch: false,
+                    disableStream: true,
+                    disableRange: true,
+                    isEvalSupported: false
+                });
+                
                 pdfDoc = await loadingTask.promise;
                 totalPages = pdfDoc.numPages;
 
-                document.getElementById('page-count').textContent = totalPages;
-                
                 // Ocultar loading
                 document.getElementById('loading').style.display = 'none';
 
-                // Renderizar todas las páginas (mejor para documentos cortos)
+                // Renderizar la página
                 await renderAllPages();
-
-                // Si prefieres navegación página por página, usa esto en su lugar:
-                // await renderSinglePage(currentPage);
-                // document.getElementById('nav-buttons').style.display = 'flex';
 
             } catch (error) {
                 document.getElementById('loading').innerHTML = 
@@ -174,21 +153,6 @@
                 console.error('Error:', error);
             }
         }
-
-        // Botones de navegación (si usas navegación por páginas)
-        document.getElementById('prev-page').addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderSinglePage(currentPage);
-            }
-        });
-
-        document.getElementById('next-page').addEventListener('click', () => {
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderSinglePage(currentPage);
-            }
-        });
 
         // Prevenir comportamientos de descarga
         document.addEventListener('contextmenu', e => e.preventDefault());
@@ -199,7 +163,11 @@
         });
 
         // Iniciar carga cuando la página esté lista
-        window.addEventListener('DOMContentLoaded', loadPDF);
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadPDF);
+        } else {
+            loadPDF();
+        }
     </script>
 </body>
 </html>
